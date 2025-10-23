@@ -15,6 +15,8 @@ SELECTION_COLOR = GREEN
 #ATTACK_COLOR = CYAN
 
 SHOW_HEALTH = True
+DISOBEDIENT_UNITS = True
+FRIENDLY_FIRE = False
 
 LMB = 1
 MMB = 2
@@ -23,7 +25,7 @@ SCROLL_UP = 4
 SCROLL_DOWN = 5
 
 UNIT_MAX_HP = 100
-UNIT_RANGE = 50
+UNIT_RANGE = 100
 UNIT_ATTACK_PERIOD = 1.0 #seconds
 UNIT_RADIUS = 2
 BULLET_RADIUS = 0
@@ -127,6 +129,11 @@ class Unit(object):
                 if (total_dist <= UNIT_RANGE):
                     bullets.append(Bullet(self, self.color, self.x, self.y, x_dist/total_dist*3, y_dist/total_dist*3))
                     self.time_last_attack = time.clock()
+                    
+    def updateChaseTarget(self):
+        if (DISOBEDIENT_UNITS):
+            if (self.target is not None):
+                self.setDestination(self.target.x, self.target.y)
                 
             
     def inflictDamage(self, attacker, damage):
@@ -161,6 +168,8 @@ class Unit(object):
                                 self.x_dest = unit.x
                                 self.y_dest = unit.y
                             self.setTarget(unit)
+                            if (DISOBEDIENT_UNITS):
+                                self.setDestination(unit.x, unit.y)
                             
     def untargetDeadUnits(self, units):
         found_target = False
@@ -169,6 +178,12 @@ class Unit(object):
                 found_target = True
         if (not found_target):
             self.target = None
+            
+    def updateNoFriendlyTargets(self):
+        if (not FRIENDLY_FIRE):
+            if (self.target is not None):
+                if (self.target.color == self.color):
+                    self.target = None
         
     def draw(self, displaySurf):
         pygame.draw.circle(displaySurf, self.color, (int(self.x), int(self.y)), UNIT_RADIUS, 0)
@@ -239,10 +254,27 @@ while (True): # the main game loop
         if event.type == QUIT:
             pygame.quit()
             sys.exit()
-        if keys[pygame.K_1]:
+        if keys[pygame.K_q]:
             units.append(Unit(mouse_pos[0], mouse_pos[1], BLUE))
-        if keys[pygame.K_2]:
+            if keys[pygame.K_LSHIFT]:
+                units.append(Unit(mouse_pos[0] + 3, mouse_pos[1] + 3, BLUE))
+                units.append(Unit(mouse_pos[0] + 3, mouse_pos[1] - 3, BLUE))
+                units.append(Unit(mouse_pos[0] - 3, mouse_pos[1] + 3, BLUE))
+                units.append(Unit(mouse_pos[0] - 3, mouse_pos[1] - 3, BLUE))
+        if keys[pygame.K_w]:
             units.append(Unit(mouse_pos[0], mouse_pos[1], RED))
+            if keys[pygame.K_LSHIFT]:
+                units.append(Unit(mouse_pos[0] + 3, mouse_pos[1] + 3, RED))
+                units.append(Unit(mouse_pos[0] + 3, mouse_pos[1] - 3, RED))
+                units.append(Unit(mouse_pos[0] - 3, mouse_pos[1] + 3, RED))
+                units.append(Unit(mouse_pos[0] - 3, mouse_pos[1] - 3, RED))
+        if keys[pygame.K_e]:
+            units.append(Unit(mouse_pos[0], mouse_pos[1], BLACK))
+            if keys[pygame.K_LSHIFT]:
+                units.append(Unit(mouse_pos[0] + 3, mouse_pos[1] + 3, BLACK))
+                units.append(Unit(mouse_pos[0] + 3, mouse_pos[1] - 3, BLACK))
+                units.append(Unit(mouse_pos[0] - 3, mouse_pos[1] + 3, BLACK))
+                units.append(Unit(mouse_pos[0] - 3, mouse_pos[1] - 3, BLACK))
         if event.type == pygame.MOUSEBUTTONDOWN:
             if (event.button == LMB):
                 click_pos = pygame.mouse.get_pos()
@@ -276,6 +308,8 @@ while (True): # the main game loop
         unit.updateAvoidOthers(units)
         unit.updateShots(bullets)
         unit.updateTargetAggressors(units, UNIT_RANGE)
+        unit.updateNoFriendlyTargets()
+        unit.updateChaseTarget()
         if (unit.hp == 0):
             units.remove(unit)
             continue
