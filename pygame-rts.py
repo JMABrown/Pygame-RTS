@@ -168,6 +168,15 @@ units.append(Unit(30, 30, RED))
 units.append(Unit(30, 40, RED))
 units.append(Unit(30, 50, RED))
 units.append(Unit(30, 60, RED))
+units.append(Unit(300, 200, YELLOW))
+units.append(Unit(300, 210, YELLOW))
+units.append(Unit(300, 220, YELLOW))
+units.append(Unit(300, 230, YELLOW))
+units.append(Unit(310, 200, YELLOW))
+units.append(Unit(310, 210, YELLOW))
+units.append(Unit(310, 220, YELLOW))
+units.append(Unit(310, 230, YELLOW))
+units.append(Unit(310, 240, YELLOW))
 
 def AnySelectedUnits(us):
     for u in us:
