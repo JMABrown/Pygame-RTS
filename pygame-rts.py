@@ -19,6 +19,10 @@ SHOW_HEALTH = True
 DISOBEDIENT_UNITS = True
 FRIENDLY_RETALIATION = False
 FRIENDLY_FIRE = False
+UNITS_KEEP_DISTANCE = True
+
+MODE_COMMAND = 0
+MODE_CONTROL = 1
 
 LMB = 1
 MMB = 2
@@ -28,14 +32,14 @@ SCROLL_DOWN = 5
 
 UNIT_MAX_HP = 100
 UNIT_RANGE = 100
-UNIT_ATTACK_PERIOD = 1.0 #seconds
+UNIT_ATTACK_PERIOD = 2.0 #seconds
 UNIT_RADIUS = 2
 BULLET_RADIUS = 0
-BULLET_DAMAGE = 10
+BULLET_DAMAGE = 20
 AVOID_RADIUS = 5
 WAYPOINT_THRESHOLD = 10
 BUILDING_EDGE = 20
-BUILDING_SPAWN_PERIOD = 0.5 #seconds
+BUILDING_SPAWN_PERIOD = 1.0 #seconds
 
 class SpawnBuilding(object):
     
@@ -52,19 +56,6 @@ class SpawnBuilding(object):
         
     def draw(self, displaySurf):
         pygame.draw.rect(displaySurf, self.color, (int(self.x) - BUILDING_EDGE/2, int(self.y) - BUILDING_EDGE/2, BUILDING_EDGE, BUILDING_EDGE), 0)
-        
-
-class AttackLine(object):
-    
-    def __init__(self, x1, y1, x2, y2):
-        self.x1 = x1
-        self.x2 = x2
-        self.y1 = y1
-        self.y2 = y2 
-        
-    def draw(self, displaySurf):
-        pygame.draw.line(displaySurf, RED, (self.x1, self.y1), (self.x2, self.y2), 3)
-        pygame.draw.line(displaySurf, CYAN, (self.x1, self.y1), (self.x2, self.y2), 1)
         
 class Bullet(object):
     def __init__(self, source, color, x, y, x_vel, y_vel):
@@ -113,6 +104,7 @@ class Unit(object):
         self.hp = UNIT_MAX_HP
         self.target = None
         self.time_last_attack = 0
+        self.target_in_range = False
         
     def setSelected(self, b):
         self.selected = b
@@ -121,6 +113,11 @@ class Unit(object):
         self.x_dest = goto_x
         self.y_dest = goto_y
         self.moving = True
+        
+    def clearDestination(self):
+        self.x_dest = 0
+        self.y_dest = 0
+        self.moving = False
         
     def updateTravel(self):
         if (self.moving):
@@ -136,18 +133,7 @@ class Unit(object):
             self.y += y_dist * 2
             
     def setTarget(self, new_target):
-        self.target = new_target
-            
-    def updateAttack(self, attacks):
-        if (self.target is not None):
-            if (time.clock() >= self.time_last_attack + UNIT_ATTACK_PERIOD):
-                x_dist = self.target.x - self.x
-                y_dist = self.target.y - self.y
-                total_dist = (x_dist**2 + y_dist**2)**0.5
-                if (total_dist <= UNIT_RANGE):
-                    self.target.inflictDamage(self, BULLET_DAMAGE)
-                    attacks.append(AttackLine(self.x, self.y, self.target.x, self.target.y))
-                    self.time_last_attack = time.clock()
+        self.target = new_target                
                     
     def updateShots(self, bullets):
         if (self.target is not None):
@@ -156,13 +142,22 @@ class Unit(object):
                 y_dist = self.target.y - self.y
                 total_dist = (x_dist**2 + y_dist**2)**0.5
                 if (total_dist <= UNIT_RANGE):
+                    self.target_in_range = True
                     bullets.append(Bullet(self, self.color, self.x, self.y, x_dist/total_dist*3, y_dist/total_dist*3))
                     self.time_last_attack = time.clock()
+                else:
+                    self.target_in_range = False
                     
     def updateChaseTarget(self):
         if (DISOBEDIENT_UNITS):
             if (self.target is not None):
-                self.setDestination(self.target.x, self.target.y)
+                if (UNITS_KEEP_DISTANCE):
+                    if (not self.target_in_range):
+                        self.setDestination(self.target.x, self.target.y)   #this could probably be written better
+                    else:
+                        self.clearDestination()
+                else:
+                    self.setDestination(self.target.x, self.target.y)
                 
             
     def inflictDamage(self, attacker, damage):
@@ -177,7 +172,7 @@ class Unit(object):
                 x_dist = unit.x - self.x
                 y_dist = unit.y - self.y
                 total_dist = (x_dist**2 + y_dist**2)**0.5
-                if (total_dist < 5 and total_dist > 0):
+                if (total_dist < UNIT_RADIUS + 3 and total_dist > 0):
                     if (abs(x_dist) < AVOID_RADIUS and abs(x_dist) > 0):
                         self.x -= x_dist / abs(x_dist)
                     if (abs(y_dist) < AVOID_RADIUS and abs(y_dist) > 0):
@@ -238,9 +233,10 @@ pygame.display.set_caption('Window Title')
 
 box_being_dragged = False
 
+play_mode = MODE_COMMAND
+
 bullets = []
 buildings = []
-attacks = [AttackLine(0, 0, 100, 100)]
 units = [Unit(100, 100, RED)]
 units.append(Unit(200, 100, BLUE))
 units.append(Unit(100, 150, BLUE))
@@ -285,53 +281,90 @@ while (True): # the main game loop
 
     for event in pygame.event.get():
         if event.type == QUIT:
-            pygame.quit()
-            sys.exit()
-        if keys[pygame.K_q]:
-            units.append(Unit(mouse_pos[0], mouse_pos[1], BLUE))
-            if keys[pygame.K_LSHIFT]:
-                units.append(Unit(mouse_pos[0] + 3, mouse_pos[1] + 3, BLUE))
-                units.append(Unit(mouse_pos[0] + 3, mouse_pos[1] - 3, BLUE))
-                units.append(Unit(mouse_pos[0] - 3, mouse_pos[1] + 3, BLUE))
-                units.append(Unit(mouse_pos[0] - 3, mouse_pos[1] - 3, BLUE))
+                pygame.quit()
+                sys.exit()
+        if (play_mode == MODE_COMMAND):
+            if keys[pygame.K_q]:
+                units.append(Unit(mouse_pos[0], mouse_pos[1], BLUE))
+                if keys[pygame.K_LSHIFT]:
+                    units.append(Unit(mouse_pos[0] + 3, mouse_pos[1] + 3, BLUE))
+                    units.append(Unit(mouse_pos[0] + 3, mouse_pos[1] - 3, BLUE))
+                    units.append(Unit(mouse_pos[0] - 3, mouse_pos[1] + 3, BLUE))
+                    units.append(Unit(mouse_pos[0] - 3, mouse_pos[1] - 3, BLUE))
+            if keys[pygame.K_w]:
+                units.append(Unit(mouse_pos[0], mouse_pos[1], RED))
+                if keys[pygame.K_LSHIFT]:
+                    units.append(Unit(mouse_pos[0] + 3, mouse_pos[1] + 3, RED))
+                    units.append(Unit(mouse_pos[0] + 3, mouse_pos[1] - 3, RED))
+                    units.append(Unit(mouse_pos[0] - 3, mouse_pos[1] + 3, RED))
+                    units.append(Unit(mouse_pos[0] - 3, mouse_pos[1] - 3, RED))
+            if keys[pygame.K_e]:
+                units.append(Unit(mouse_pos[0], mouse_pos[1], BLACK))
+                if keys[pygame.K_LSHIFT]:
+                    units.append(Unit(mouse_pos[0] + 3, mouse_pos[1] + 3, BLACK))
+                    units.append(Unit(mouse_pos[0] + 3, mouse_pos[1] - 3, BLACK))
+                    units.append(Unit(mouse_pos[0] - 3, mouse_pos[1] + 3, BLACK))
+                    units.append(Unit(mouse_pos[0] - 3, mouse_pos[1] - 3, BLACK))
+            if keys[pygame.K_LCTRL]:
+                play_mode = MODE_CONTROL
+                break
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if (event.button == LMB):
+                    click_pos = pygame.mouse.get_pos()
+                    box_being_dragged = True
+                if (event.button == RMB):
+                    for unit in units:
+                        if (unit.selected):
+                            unit.setDestination(mouse_pos[0], mouse_pos[1])
+                            for target_unit in units:
+                                dist_from_mouse = ((target_unit.x - mouse_pos[0])**2 + (target_unit.y - mouse_pos[1])**2)**0.5
+                                if (dist_from_mouse < 8):
+                                    if (target_unit is not unit):
+                                        unit.setTarget(target_unit)
+                            
+                    #else:
+                        #units.append(Unit(mouse_pos[0], mouse_pos[1], RED))
+            if event.type == pygame.MOUSEBUTTONUP:
+                if (event.button == LMB):
+                    box_being_dragged = False
+                    for unit in units:
+                        if (unit.x < mouse_pos[0] and unit.x > click_pos[0] and unit.y < mouse_pos[1] and unit.y > click_pos[1]):
+                            unit.setSelected(True)
+                        else:
+                            unit.setSelected(False)
+                            
+        if (play_mode == MODE_CONTROL):
+            if keys[pygame.K_LCTRL]:
+                play_mode = MODE_COMMAND
+                break
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if (event.button == LMB):
+                    for unit in units:
+                        if (unit.selected):
+                            x_dist = mouse_pos[0] - unit.x
+                            y_dist = mouse_pos[1] - unit.y
+                            total_dist = (x_dist**2 + y_dist**2)**0.5
+                            x_vel = x_dist / total_dist
+                            y_vel = y_dist / total_dist
+                            bullets.append(Bullet(unit, unit.color, unit.x, unit.y, x_vel * 2, y_vel * 2))
+        
+    if (play_mode == MODE_CONTROL):
         if keys[pygame.K_w]:
-            units.append(Unit(mouse_pos[0], mouse_pos[1], RED))
-            if keys[pygame.K_LSHIFT]:
-                units.append(Unit(mouse_pos[0] + 3, mouse_pos[1] + 3, RED))
-                units.append(Unit(mouse_pos[0] + 3, mouse_pos[1] - 3, RED))
-                units.append(Unit(mouse_pos[0] - 3, mouse_pos[1] + 3, RED))
-                units.append(Unit(mouse_pos[0] - 3, mouse_pos[1] - 3, RED))
-        if keys[pygame.K_e]:
-            units.append(Unit(mouse_pos[0], mouse_pos[1], BLACK))
-            if keys[pygame.K_LSHIFT]:
-                units.append(Unit(mouse_pos[0] + 3, mouse_pos[1] + 3, BLACK))
-                units.append(Unit(mouse_pos[0] + 3, mouse_pos[1] - 3, BLACK))
-                units.append(Unit(mouse_pos[0] - 3, mouse_pos[1] + 3, BLACK))
-                units.append(Unit(mouse_pos[0] - 3, mouse_pos[1] - 3, BLACK))
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            if (event.button == LMB):
-                click_pos = pygame.mouse.get_pos()
-                box_being_dragged = True
-            if (event.button == RMB):
-                for unit in units:
-                    if (unit.selected):
-                        unit.setDestination(mouse_pos[0], mouse_pos[1])
-                        for target_unit in units:
-                            dist_from_mouse = ((target_unit.x - mouse_pos[0])**2 + (target_unit.y - mouse_pos[1])**2)**0.5
-                            if (dist_from_mouse < 8):
-                                if (target_unit is not unit):
-                                    unit.setTarget(target_unit)
-                        
-                #else:
-                    #units.append(Unit(mouse_pos[0], mouse_pos[1], RED))
-        if event.type == pygame.MOUSEBUTTONUP:
-            if (event.button == LMB):
-                box_being_dragged = False
-                for unit in units:
-                    if (unit.x < mouse_pos[0] and unit.x > click_pos[0] and unit.y < mouse_pos[1] and unit.y > click_pos[1]):
-                        unit.setSelected(True)
-                    else:
-                        unit.setSelected(False)
+            for unit in units:
+                if (unit.selected):
+                    unit.y += -2
+        if keys[pygame.K_a]:
+            for unit in units:
+                if (unit.selected):
+                    unit.x += -2
+        if keys[pygame.K_s]:
+            for unit in units:
+                if (unit.selected):
+                    unit.y += 2
+        if keys[pygame.K_d]:
+            for unit in units:
+                if (unit.selected):
+                    unit.x += 2
     
     if (box_being_dragged):
         pygame.draw.rect(DISPLAYSURF, RED, (click_pos[0], click_pos[1], mouse_pos[0] - click_pos[0], mouse_pos[1] - click_pos[1]), 1)
@@ -353,9 +386,6 @@ while (True): # the main game loop
         building.updateSpawner(units)
         building.draw(DISPLAYSURF)
         
-    for al in attacks:
-        al.draw(DISPLAYSURF)
-        
     for bullet in bullets:
         bullet.updatePos()
         bullet.checkColisions(units)
@@ -366,8 +396,5 @@ while (True): # the main game loop
         bullet.draw(DISPLAYSURF)
 
     pygame.display.update()
-    
-    for al in attacks:
-        attacks.remove(al)
     
     fpsClock.tick(FPS)
