@@ -54,10 +54,12 @@ class Unit(object):
             if (unit is not self):
                 x_dist = unit.x - self.x
                 y_dist = unit.y - self.y
-                if (abs(x_dist) < 5 and abs(x_dist) > 0):
-                    self.x += x_dist / abs(x_dist)
-                if (abs(y_dist) < 5 and abs(y_dist) > 0):
-                    self.y += y_dist / abs(y_dist)
+                total_dist = (x_dist**2 + y_dist**2)**0.5
+                if (total_dist < 5 and total_dist > 0):
+                    if (abs(x_dist) < 5 and abs(x_dist) > 0):
+                        self.x -= x_dist / abs(x_dist)
+                    if (abs(y_dist) < 5 and abs(y_dist) > 0):
+                        self.y -= y_dist / abs(y_dist)
         
     def draw(self, displaySurf):
         pygame.draw.circle(displaySurf, self.color, (int(self.x), int(self.y)), 2, 0)
