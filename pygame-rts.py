@@ -110,7 +110,8 @@ class Unit(object):
         if (self.target is None):   #dont retarget wildly
             for unit in units:
                 if (unit is not self):
-                    if (unit.target is not None):   #target those who have targets (should really be those who fired but yaknow)
+                    #if (unit.target is not None):   #target those who have targets (should really be those who fired but yaknow)
+                    if (unit.color != self.color):  #making the units only shoot on enemies
                         x_dist = unit.x - self.x
                         y_dist = unit.y - self.y
                         total_dist = (x_dist**2 + y_dist**2)**0.5
