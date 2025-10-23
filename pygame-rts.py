@@ -1,5 +1,6 @@
 import pygame
 import numpy as np
+import random as rand
 import time
 from pygame.locals import *
 
@@ -16,6 +17,7 @@ SELECTION_COLOR = GREEN
 
 SHOW_HEALTH = True
 DISOBEDIENT_UNITS = True
+FRIENDLY_RETALIATION = False
 FRIENDLY_FIRE = False
 
 LMB = 1
@@ -32,6 +34,25 @@ BULLET_RADIUS = 0
 BULLET_DAMAGE = 10
 AVOID_RADIUS = 5
 WAYPOINT_THRESHOLD = 10
+BUILDING_EDGE = 20
+BUILDING_SPAWN_PERIOD = 0.5 #seconds
+
+class SpawnBuilding(object):
+    
+    def __init__(self, x, y, color):
+        self.x = x
+        self.y = y
+        self.color = color
+        self.time_last_spawn = 0
+        
+    def updateSpawner(self, units):
+        if (time.clock() >= self.time_last_spawn + BUILDING_SPAWN_PERIOD):
+            units.append(Unit(self.x + BUILDING_EDGE + 3 + rand.randint(-5, 5), self.y + rand.randint(-5, 5), self.color))
+            self.time_last_spawn = time.clock()
+        
+    def draw(self, displaySurf):
+        pygame.draw.rect(displaySurf, self.color, (int(self.x) - BUILDING_EDGE/2, int(self.y) - BUILDING_EDGE/2, BUILDING_EDGE, BUILDING_EDGE), 0)
+        
 
 class AttackLine(object):
     
@@ -39,7 +60,7 @@ class AttackLine(object):
         self.x1 = x1
         self.x2 = x2
         self.y1 = y1
-        self.y2 = y2
+        self.y2 = y2 
         
     def draw(self, displaySurf):
         pygame.draw.line(displaySurf, RED, (self.x1, self.y1), (self.x2, self.y2), 3)
@@ -54,18 +75,26 @@ class Bullet(object):
         self.x_vel = x_vel
         self.y_vel = y_vel
         self.colided = False
+        self.offscreen = False
         
     def updatePos(self):
         self.x += self.x_vel
         self.y += self.y_vel
         
+    def checkOffscreen(self, worldx, worldy):
+        if (self.x < 0 or self.y < 0 or self.x > worldx or self.y > worldy):
+            self.offscreen = True
+        
     def checkColisions(self, units):
         for unit in units:
             if (unit is not self.source):
-                total_dist = ((self.x - unit.x)**2 + (self.y - unit.y)**2)**0.5
-                if (total_dist <= UNIT_RADIUS + BULLET_RADIUS):
-                    unit.inflictDamage(self.source, BULLET_DAMAGE)
-                    self.colided = True
+                if ((not FRIENDLY_FIRE) and unit.color == self.color):
+                    continue
+                else:
+                    total_dist = ((self.x - unit.x)**2 + (self.y - unit.y)**2)**0.5
+                    if (total_dist <= UNIT_RADIUS + BULLET_RADIUS):
+                        unit.inflictDamage(self.source, BULLET_DAMAGE)
+                        self.colided = True
         
     def draw(self, displaySurf):
         pygame.draw.circle(displaySurf, self.color, (int(self.x), int(self.y)), BULLET_RADIUS, 0)
@@ -180,7 +209,7 @@ class Unit(object):
             self.target = None
             
     def updateNoFriendlyTargets(self):
-        if (not FRIENDLY_FIRE):
+        if (not FRIENDLY_RETALIATION):
             if (self.target is not None):
                 if (self.target.color == self.color):
                     self.target = None
@@ -210,6 +239,7 @@ pygame.display.set_caption('Window Title')
 box_being_dragged = False
 
 bullets = []
+buildings = []
 attacks = [AttackLine(0, 0, 100, 100)]
 units = [Unit(100, 100, RED)]
 units.append(Unit(200, 100, BLUE))
@@ -242,6 +272,9 @@ units.append(Unit(310, 210, BLACK))
 units.append(Unit(310, 220, BLACK))
 units.append(Unit(310, 230, BLACK))
 units.append(Unit(310, 240, BLACK))
+buildings.append(SpawnBuilding(100, 100, RED))
+buildings.append(SpawnBuilding(300, 100, BLUE))
+buildings.append(SpawnBuilding(200, 250, BLACK))
 
 while (True): # the main game loop
     DISPLAYSURF.fill(WHITE)
@@ -316,13 +349,18 @@ while (True): # the main game loop
         unit.untargetDeadUnits(units)
         unit.draw(DISPLAYSURF)
         
+    for building in buildings:
+        building.updateSpawner(units)
+        building.draw(DISPLAYSURF)
+        
     for al in attacks:
         al.draw(DISPLAYSURF)
         
     for bullet in bullets:
         bullet.updatePos()
         bullet.checkColisions(units)
-        if (bullet.colided == True):
+        bullet.checkOffscreen(worldx, worldy)
+        if (bullet.colided or bullet.offscreen):
             bullets.remove(bullet)
             continue
         bullet.draw(DISPLAYSURF)
