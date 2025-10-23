@@ -105,6 +105,18 @@ class Unit(object):
                         self.x -= x_dist / abs(x_dist)
                     if (abs(y_dist) < 5 and abs(y_dist) > 0):
                         self.y -= y_dist / abs(y_dist)
+                        
+    def updateTargetAggressors(self, units, radius):
+        for unit in units:
+            if (unit is not self):
+                x_dist = unit.x - self.x
+                y_dist = unit.y - self.y
+                total_dist = (x_dist**2 + y_dist**2)**0.5
+                if (total_dist < radius):
+                    if (total_dist < UNIT_RANGE):
+                        self.x_dest = unit.x
+                        self.y_dest = unit.y
+                    self.setTarget(unit)
         
     def draw(self, displaySurf):
         pygame.draw.circle(displaySurf, self.color, (int(self.x), int(self.y)), 2, 0)
@@ -202,6 +214,7 @@ while (True): # the main game loop
         unit.updateTravel()
         unit.updateAvoidOthers(units)
         unit.updateAttack(attacks)
+        unit.updateTargetAggressors(units, UNIT_RANGE)
         if (unit.hp == 0):
             for attacking_unit in units:
                 if (attacking_unit.target is unit):
