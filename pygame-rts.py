@@ -24,14 +24,45 @@ class Unit(object):
         self.y = y
         self.color = color
         self.selected = False
+        self.x_dest = 0
+        self.y_dest = 0
+        self.moving = False
         
     def setSelected(self, b):
         self.selected = b
         
+    def setDestination(self, goto_x, goto_y):
+        self.x_dest = goto_x
+        self.y_dest = goto_y
+        self.moving = True
+        
+    def updateTravel(self):
+        if (self.moving):
+            x_dist = self.x_dest - self.x
+            y_dist = self.y_dest - self.y
+            dist = (x_dist**2 + y_dist**2)**0.5
+            if (dist < 10):
+                self.moving = False
+                return
+            x_dist /= dist
+            y_dist /= dist
+            self.x += x_dist * 2
+            self.y += y_dist * 2
+            
+    def updateAvoidOthers(self, units):
+        for unit in units:
+            if (unit is not self):
+                x_dist = unit.x - self.x
+                y_dist = unit.y - self.y
+                if (abs(x_dist) < 5 and abs(x_dist) > 0):
+                    self.x += x_dist / abs(x_dist)
+                if (abs(y_dist) < 5 and abs(y_dist) > 0):
+                    self.y += y_dist / abs(y_dist)
+        
     def draw(self, displaySurf):
-        pygame.draw.circle(displaySurf, self.color, (self.x, self.y), 2, 0)
+        pygame.draw.circle(displaySurf, self.color, (int(self.x), int(self.y)), 2, 0)
         if (self.selected):
-            pygame.draw.rect(displaySurf, SELECTION_COLOR, (self.x - 4, self.y - 4, 8, 8), 1)
+            pygame.draw.rect(displaySurf, SELECTION_COLOR, (int(self.x) - 4, int(self.y) - 4, 8, 8), 1)
 
 pygame.init()
 
@@ -51,6 +82,12 @@ units.append(Unit(200, 100, BLUE))
 units.append(Unit(100, 150, BLUE))
 units.append(Unit(20, 20, RED))
 
+def AnySelectedUnits(us):
+    for u in us:
+        if u.selected == True:
+            return True
+    return False
+
 while (True): # the main game loop
     DISPLAYSURF.fill(WHITE)
     
@@ -66,7 +103,11 @@ while (True): # the main game loop
                 click_pos = pygame.mouse.get_pos()
                 box_being_dragged = True
             if (event.button == RMB):
-                units.append(Unit(mouse_pos[0], mouse_pos[1], RED))
+                for unit in units:
+                    if (unit.selected):
+                        unit.setDestination(mouse_pos[0], mouse_pos[1])
+                #else:
+                    #units.append(Unit(mouse_pos[0], mouse_pos[1], RED))
         if event.type == pygame.MOUSEBUTTONUP:
             if (event.button == LMB):
                 box_being_dragged = False
@@ -80,6 +121,8 @@ while (True): # the main game loop
         pygame.draw.rect(DISPLAYSURF, RED, (click_pos[0], click_pos[1], mouse_pos[0] - click_pos[0], mouse_pos[1] - click_pos[1]), 1)
         
     for unit in units:
+        unit.updateTravel()
+        unit.updateAvoidOthers(units)
         unit.draw(DISPLAYSURF)        
         
     keys = pygame.key.get_pressed()
